@@ -4,12 +4,16 @@ while [[ $# -gt 1 ]]; do
     key="$1"
 
 case $key in
--i|--input)
-MLTrees="$2"
+-i|--indir)
+indir="$2"
 shift # past argument
 ;;
 -b|--beta)
 beta="$2"
+shift # past argument
+;;
+-t|--temp)
+tempdir="$2"
 shift # past argument
 ;;
 -d|--outdir)
@@ -35,17 +39,18 @@ shift # past argument or value
 done
 
 
-if [ -z $MLTrees ]; then echo "MLTrees are required"; else echo "MLTrees: " $MLTrees; fi
-if [ -z $alpha ]; then echo "alpha is set to default value"; alpha=0.05; fi; echo "alpha: " $alpha;
+if [ -z $indir ]; then echo "input directory is required"; else echo "Input directory: " $indir; fi
+if [ -z $alpha ]; then echo "alpha is set to default value"; alpha=0.05; fi; echo "alpha: " $alpha
 if [ -z $beta ]; then echo "beta is set to default beta = 0.90"; beta=0.90; else echo "beta: `echo $beta | sed "s/,/ /g"`"; fi
-if [ -z $gamma ]; then echo "gamma is set to default value"; gamma=0.50; fi; echo "alpha: " $alpha;
-if [ -z $outdir ]; then outdir=`dirname $MLTrees`/`basename $MLTrees .trees`.GGI_Output; fi; echo "outdir: " $outdir;
+if [ -z $gamma ]; then echo "gamma is set to default value"; gamma=0.50; fi; echo "gamma: " $gamma
+if [ -z $outdir ]; then outdir=`dirname $indir`/`basename $indir`_GGI_Output; fi; echo "outdir: " $outdir
+if [ -z $tempdir ]; then tempdir=`mktemp -d`; else mkdir $tempdir; fi; echo "tempdir: " $tempdir
 
 echo "Create output directory"
 mkdir $outdir
 
 echo "Estimating ASTRAL species tree ..."
-cp $MLTrees $outdir/MLTrees
+cat $indir/*.tre > $outdir/MLTrees
 cd $outdir
 runAstral.sh `pwd`/MLTrees astral
 
@@ -54,6 +59,20 @@ collapse_low_support.sh MLTrees MLTrees.collapsed $gamma
 
 echo "Scoring the ASTRAL tree ..."
 scoreAstral.sh MLTrees.collapsed astral.tre astral.qtscore
+
+echo "Running RAxML: generating constrained gene trees"
+for b in $beta; do
+    collapse_low_support.sh astral.qtscore.tre astral.cons$b\.tre  $b
+    for x in $indir/*fasta; do 
+        name=`basename $x .fasta`.cons$b
+        runRAxML_constraint.sh $x astral.cons$b\.tre $name $tempdir
+        cp $tempdir/RAxML_bestTree.$name $outdir/$name\.tre 
+    done
+done
+
+
+
+
 
 
 
