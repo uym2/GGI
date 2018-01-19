@@ -4,20 +4,12 @@ while [[ $# -gt 1 ]]; do
     key="$1"
 
 case $key in
--i|--indir)
-indir="$2"
+-d|--wdir)
+wdir="$2"
 shift # past argument
 ;;
 -b|--beta)
 beta="$2"
-shift # past argument
-;;
--t|--temp)
-tempdir="$2"
-shift # past argument
-;;
--d|--outdir)
-outdir="$2"
 shift # past argument
 ;;
 -a|--alpha)
@@ -25,8 +17,18 @@ alpha="$2"
 shift # past argument
 ;;
 -g|--gamma)
-gamma="$3"
+gamma="$2"
 shift # past argument
+;;
+-f|--full)
+full=1
+;;
+-j|--createjobs)
+jobfile="$2"
+shift # past argument
+;;
+-r|--runAstral)
+spTree="astral"
 ;;
 --default)
 DEFAULT=YES
@@ -39,71 +41,69 @@ shift # past argument or value
 done
 
 
-if [ -z $indir ]; then echo "input directory is required"; else echo "Input directory: " $indir; fi
-if [ -z $alpha ]; then echo "alpha is set to default value"; alpha=0.05; fi; echo "alpha: " $alpha
-if [ -z $beta ]; then echo "beta is set to default beta = 0.90"; beta=0.90; else echo "beta: `echo $beta | sed "s/,/ /g"`"; fi
-if [ -z $gamma ]; then echo "gamma is set to default value"; gamma=0.50; fi; echo "gamma: " $gamma
-if [ -z $outdir ]; then outdir=`dirname $indir`/`basename $indir`_GGI_Output; fi; echo "outdir: " $outdir
-if [ -z $tempdir ]; then tempdir=`mktemp -d`; else mkdir $tempdir; fi; echo "tempdir: " $tempdir
+if [ -z $wdir ]; then echo "working directory is required"; else echo "Working directory: " $wdir; fi
+[ -z $alpha ] && alpha=0.05; echo "alpha: " $alpha
+if [ -z $beta ]; then beta=90; fi
+echo beta: $beta
+[ -z $gamma ] && gamma=10; echo "gamma: " $gamma
+[ -z $spTree ] && spTree="sp"; echo "species tree: " $spTree\.tre
 
-echo "Create output directory"
-mkdir $outdir
 
-echo "Estimating ASTRAL species tree ..."
-cat $indir/*.tre > $outdir/MLTrees
-cd $outdir
-runAstral.sh `pwd`/MLTrees astral
+cd $wdir
 
-echo "Collapsing gene trees ..."
-collapse_low_support.sh MLTrees MLTrees.collapsed $gamma
+if [ ! -s $spTree\.qtscore$gamma.tre ]; then
+    cat */ML.tre > MLTrees
+    echo "Collapsing gene trees ..."
+    collapse_low_support.sh MLTrees MLTrees.collapsed$gamma $gamma
+    
+    if [ $spTree == "astral" ]; then
+        echo "Estimating ASTRAL species tree ..."
+        runAstral.sh MLTrees astral
+        echo "Scoring the ASTRAL tree ..."
+        scoreAstral.sh MLTrees.collapsed$gamma astral.tre astral\.qtscore$gamma
+    fi
 
-echo "Scoring the ASTRAL tree ..."
-scoreAstral.sh MLTrees.collapsed astral.tre astral.qtscore
+fi    
+
 
 echo "Running RAxML: generating constrained gene trees"
-for b in $beta; do
-    collapse_low_support.sh astral.qtscore.tre astral.cons$b\.tre  $b
-    for x in $indir/*fasta; do 
-        name=`basename $x .fasta`.cons$b
-        runRAxML_constraint.sh $x astral.cons$b\.tre $name $tempdir
-        cp $tempdir/RAxML_bestTree.$name $outdir/$name\.tre 
-    done
+for x in $wdir/*/aln.fasta; do
+    d=`dirname $x`
+    if [ ! -s $d/RAxML_perSiteLLs.ML.sitelh ]; then
+        runRAxML_sitelh.sh $x $d/ML.tre ML $d
+    fi
 done
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+for b in $beta; do
+    name=cons$b
+    if [ $spTree == "astral" ]; then
+        scoredTree=astral\.qtscore$gamma
+    else
+        scoredTree=$spTree
+    fi
+    collapse_low_support.sh $scoredTree\.tre "$scoredTree"\.$name\.tre $b
+    for x in $wdir/*/aln.fasta; do 
+        d=`dirname $x`
+        job="constrain.sh $x $wdir/"$scoredTree".$name\.tre $d/ML.tre $d/RAxML_perSiteLLs.ML.sitelh "$spTree""$name" $alpha"
+        if [ -z $jobfile ]; then
+            #constrain.sh $x $wdir/astral$gamma\.$name\.tre $d/ML.tre $d/RAxML_perSiteLLs.ML.sitelh $name
+            eval $job
+        else
+            echo $job >> $jobfile
+        fi
+        #runRAxML_constraint.sh $x astral$gamma\.$name\.tre $name $d
+        #runRAxML_sitelh.sh $x $d/RAxML_bestTree.$name $name $d
+        #combine_llh_files.py $d/RAxML_perSiteLLs.ML.sitelh $d/RAxML_perSiteLLs.$name\.sitelh $d/$name\.sitelh
+        #cd $d
+        #runCONSEL.sh $name
+        #pval=`grep "#    2" $name\.consel | awk '{print $5;}'`
+        #if (( $(echo "$pval > $alpha" |bc -l) )); then
+        #    cp RAxML_bestTree.$name $name\.GGI.tre
+        #else
+        #    cp ML.tre $name\.GGI.tre
+        #fi
+        #cd ../
+    done
+done
 

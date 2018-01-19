@@ -6,5 +6,5 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 $DIR/CONSEL/seqmt --puzzle $input\.sitelh
 $DIR/CONSEL/makermt --puzzle  $input\.sitelh
-$DIR/CONSEL/consel $input
-$DIR/CONSEL/catpv `echo $input | sed "s/\..*//g"`\.pv  > $input\.consel
+$DIR/CONSEL/consel $input $input
+$DIR/CONSEL/catpv $input  > $input\.consel

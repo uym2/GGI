@@ -3,5 +3,8 @@
 seqfile=$1
 trees=$2
 name=$3 # output
+outdir=$4 # optional
 
-raxmlHPC -f g -s $seqfile -m GTRGAMMA -z $trees -n $name\.sitelh -w `dirname $seqfile`
+[ -z $outdir ] && outdir=`dirname $seqfile`
+
+raxmlHPC -f g -s $seqfile -m GTRGAMMA -z $trees -n $name\.sitelh -w $outdir

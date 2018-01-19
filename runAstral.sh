@@ -5,4 +5,4 @@ name=$2
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-java -Xmx200m -jar $DIR/Astral/astral.5.5.5.jar -i $gtrees -o `dirname $gtrees`/$name.tre > `dirname $gtrees`/$name.log 2>&1
+java -Xmx500m -jar $DIR/Astral/astral.5.5.5.jar -i $gtrees -o $name.tre > $name.log 2>&1
